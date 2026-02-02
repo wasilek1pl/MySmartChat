@@ -1,0 +1,31 @@
+# 1. SECURITY (Never upload these!)
+.env
+.env.local
+secrets.json
+
+# 2. VIRTUAL ENVIRONMENT (Infrastructure)
+.venv/
+venv/
+env/
+
+# 3. PYTHON JUNK (Compiled files)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 4. JUPYTER NOTEBOOKS (Temporary checkpoints)
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# 5. MACOS SPECIFIC (The Mac "Ghost" files)
+.DS_Store
+
+# 6. DISTRIBUTION/BUILD
+dist/
+build/
+*.egg-info/
+
+# 7. VECTOR DATABASE (Local storage for ChromaDB)
+# We ignore this because it contains private indexed data.
+my_vectordb/
+.chroma/
