@@ -1,55 +1,81 @@
 import os
-from google import genai  # Notice the import change
+import time
+from google import genai
 from dotenv import load_dotenv
 
-def setup_ai():
+# Define the model constant for centralized configuration
+CURRENT_MODEL = "gemini-3-flash-preview"
+
+def setup_ai(test_connection=True):
     """
-    Initializes the new google-genai Client.
+    Initializes the AI Client with automatic retry logic for 429 rate limit errors.
+    
+    Args:
+        test_connection (bool): If True, sends a test request to the API.
+                                If False, initializes the client without verifying connectivity.
+                                Defaults to True.
+    Returns:
+        genai.Client: The initialized client object, or None if initialization fails.
     """
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
 
-    print("\n--- 🛡️ DATA ENGINEER SAFETY AUDIT (v2.0) ---")
-
-    # 1. Key Presence Check
+    # 1. Validate API Key presence
     if not api_key:
-        print("ERROR: No API Key found in your .env file.")
+        print("[ERROR] No GEMINI_API_KEY found in environment variables.")
         return None
+    
+    # 2. Security Audit: Check for .gitignore
+    # Determines the project root directory
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    gitignore_path = os.path.join(project_root, ".gitignore")
 
-    # 2. Security Check (Git Protection)
-    if os.path.exists(".gitignore"):
-        with open(".gitignore", "r") as f:
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, "r") as f:
             content = f.read()
             if ".env" not in content:
-                print("SECURITY WARNING: .env is NOT in .gitignore!")
+                print("[SECURITY WARNING] .env is NOT listed in .gitignore.")
             else:
-                print("Git Protection: Active (.env is hidden)")
+                print("[INFO] Git protection active (.env is hidden).")
     else:
-        print("Warning: No .gitignore file found.")
+        print("[WARNING] No .gitignore file found.")
 
-    # 3. Initialize the New Client
+    # 3. Initialize Client
     try:
-        # The new SDK uses a Client object that holds your key
         client = genai.Client(api_key=api_key)
-        
-        # Test the connection with a tiny request
-        # In the new SDK, we use client.models.generate_content
-        response = client.models.generate_content(
-            model='gemini-2.5-flash', 
-            contents='Ping'
-        )
-        
-        print("Model: Gemini 2.5 Flash (Unified SDK)")
-        print("------------------------------------------\n")
-        
-        return client  # We return the CLIENT now, not the model
-
     except Exception as e:
-        error_msg = str(e).lower()
-        if "location not supported" in error_msg:
-            print("REGION ERROR: Please ensure your VPN is set up.")
-        elif "429" in error_msg:
-            print("LIMIT REACHED: You hit the free cap. Wait 60s.")
-        else:
-            print(f"CONNECTION FAILED: {e}")
+        print(f"[ERROR] Client initialization failed: {e}")
         return None
+
+    # Return immediately if testing is not required to conserve quota
+    if not test_connection:
+        return client
+
+    # 4. Connection Test with Exponential Backoff
+    print(f"[INFO] Testing connection to {CURRENT_MODEL}...")
+    
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            client.models.generate_content(
+                model=CURRENT_MODEL, 
+                contents='Ping'
+            )
+            print(f"[SUCCESS] Connected to {CURRENT_MODEL}")
+            return client
+
+        except Exception as e:
+            error_msg = str(e).lower()
+            
+            # Handle Rate Limit (429) errors
+            if "429" in error_msg:
+                wait_time = (attempt + 1) * 5
+                print(f"[WARNING] Rate limit hit (429). Waiting {wait_time}s before retry {attempt+1}...")
+                time.sleep(wait_time)
+            else:
+                # Handle non-retriable errors
+                print(f"[ERROR] Connection failed: {e}")
+                return None
+    
+    print("[ERROR] Connection failed after maximum retries.")
+    return None

@@ -1,5 +1,0 @@
-Theme 1: Software Engineering Python is a high-level, interpreted programming language known for its readability. It uses indentation to define code blocks, which makes it very clean to look at. For data science, libraries like Pandas and NumPy are essential tools. When building an AI assistant, we often use APIs to connect local code to powerful large language models in the cloud.
-
-Theme 2: Italian Cuisine A perfect Carbonara requires only a few ingredients: eggs, pecorino romano cheese, guanciale, and black pepper. You should never add cream to an authentic Roman pasta dish. The creaminess comes from the emulsion of the pasta water and the whisked eggs. It is important to temper the eggs so they don't scramble when they hit the hot noodles.
-
-Theme 3: Travel Planning Tokyo is a city where modern skyscrapers meet ancient wooden temples. If you visit in the spring, the cherry blossoms (Sakura) create a beautiful pink canopy over the streets. Navigating the subway system can be complex, but the efficiency of the JR lines is unmatched. Don't forget to try the street food in Osaka, which is often called the kitchen of Japan.

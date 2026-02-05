@@ -35,7 +35,7 @@ The system follows a standard RAG pipeline architecture:
 
 ## Technical Stack
 - Language: Python 3.12+
-- LLM: Google Gemini 1.5 Flash
+- LLM: gemini-3-flash-preview
 - Vector Database: ChromaDB
 - Embedding Model: Google Text-Embedding-004
 - OS: macOS (Optimized for Apple Silicon M-series)
