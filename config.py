@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 def setup_ai():
     """
-    Updated 2025 Setup: Initializes the new google-genai Client.
+    Initializes the new google-genai Client.
     """
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
@@ -13,7 +13,7 @@ def setup_ai():
 
     # 1. Key Presence Check
     if not api_key:
-        print("❌ ERROR: No API Key found in your .env file.")
+        print("ERROR: No API Key found in your .env file.")
         return None
 
     # 2. Security Check (Git Protection)
@@ -21,11 +21,11 @@ def setup_ai():
         with open(".gitignore", "r") as f:
             content = f.read()
             if ".env" not in content:
-                print("⚠️ SECURITY WARNING: .env is NOT in .gitignore!")
+                print("SECURITY WARNING: .env is NOT in .gitignore!")
             else:
-                print("🔒 Git Protection: Active (.env is hidden)")
+                print("Git Protection: Active (.env is hidden)")
     else:
-        print("⚠️ Warning: No .gitignore file found.")
+        print("Warning: No .gitignore file found.")
 
     # 3. Initialize the New Client
     try:
@@ -39,7 +39,7 @@ def setup_ai():
             contents='Ping'
         )
         
-        print("✅ Model: Gemini 2.5 Flash (Unified SDK)")
+        print("Model: Gemini 2.5 Flash (Unified SDK)")
         print("------------------------------------------\n")
         
         return client  # We return the CLIENT now, not the model
@@ -47,9 +47,9 @@ def setup_ai():
     except Exception as e:
         error_msg = str(e).lower()
         if "location not supported" in error_msg:
-            print("🌍 REGION ERROR: Please ensure your VPN is set up.")
+            print("REGION ERROR: Please ensure your VPN is set up.")
         elif "429" in error_msg:
-            print("🛑 LIMIT REACHED: You hit the free cap. Wait 60s.")
+            print("LIMIT REACHED: You hit the free cap. Wait 60s.")
         else:
-            print(f"❌ CONNECTION FAILED: {e}")
+            print(f"CONNECTION FAILED: {e}")
         return None

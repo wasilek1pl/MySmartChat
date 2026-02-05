@@ -1,1 +1,16 @@
-Theme 1: Software Engineering Python is a high-level, interpreted programming language known for its readability. It uses indentation to define code blocks, which makes it very clean to look at. For data science, libraries like Pandas and NumPy are essential tools. When building an AI assistant, we often use APIs to connect local code to powerful large language models in the cloud.
+# ENGINEERING LOG: Data & C++ (2026)
+
+## Transition Goals: Analyst to Engineer
+* Focus: Moving from "What happened in the data?" to "How do we build the pipe that moves the data?"
+* Medallion Architecture:
+    1. Bronze (Raw): The landing zone for messy, untouched data.
+    2. Silver (Clean): Filtered, joined, and standardized data.
+    3. Gold (Business): Aggregated data ready for a dashboard or an AI.
+
+## C++ Learning Path (For Data Pipelines)
+* Memory Management: In Python, I don't think about pointers. In C++, I have to be the manager. 
+* Smart Pointers: Use `std::unique_ptr` and `std::shared_ptr` to avoid memory leaks. This is vital for high-performance data loading.
+
+## Current Project: MySmartChat
+* Tech Stack: Python, LangChain, ChromaDB, Gemini 2.0.
+* Challenge: Making the "Smart Loader" ignore system files like .DS_Store while reading .txt and .md files efficiently.
