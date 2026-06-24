@@ -29,3 +29,6 @@ build/
 # We ignore this because it contains private indexed data.
 my_vectordb/
 .chroma/
+
+# 8. RELATIONAL STATE DATABASE (DuckDB)
+chat_history.duckdb

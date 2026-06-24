@@ -1,81 +1,52 @@
 import os
-import time
-from google import genai
-from dotenv import load_dotenv
 
-# Define the model constant for centralized configuration
-CURRENT_MODEL = "gemini-3-flash-preview"
+# --- Directory and Database Paths ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_DIR = os.path.join(BASE_DIR, "my_vectordb")
+KNOWLEDGE_DIR = os.path.join(BASE_DIR, "my_knowledge")
+DUCKDB_PATH = os.path.join(BASE_DIR, "chat_history.duckdb")
 
-def setup_ai(test_connection=True):
+# --- Model Configurations ---
+LLM_MODEL = "llama3"
+LLM_TEMPERATURE_CHAT = 0.7
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+
+# --- RAG Retrieval Parameters ---
+RETRIEVER_K = 2
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
+
+def run_startup_checks():
     """
-    Initializes the AI Client with automatic retry logic for 429 rate limit errors.
-    
-    Args:
-        test_connection (bool): If True, sends a test request to the API.
-                                If False, initializes the client without verifying connectivity.
-                                Defaults to True.
-    Returns:
-        genai.Client: The initialized client object, or None if initialization fails.
+    Ensures necessary directories exist and performs a security audit 
+    for Git repository protections.
     """
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-
-    # 1. Validate API Key presence
-    if not api_key:
-        print("[ERROR] No GEMINI_API_KEY found in environment variables.")
-        return None
+    # 1. Ensure target storage directories exist
+    for directory in [DB_DIR, KNOWLEDGE_DIR]:
+        os.makedirs(directory, exist_ok=True)
+        
+    # 2. Security Audit: Check for .gitignore protections
+    gitignore_path = os.path.join(BASE_DIR, ".gitignore")
     
-    # 2. Security Audit: Check for .gitignore
-    # Determines the project root directory
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    gitignore_path = os.path.join(project_root, ".gitignore")
-
+    # Files and folders that should NEVER be pushed to GitHub
+    sensitive_items = [
+        ".env", 
+        "my_vectordb/", 
+        "chat_history.duckdb", 
+        "__pycache__/"
+    ]
+    
     if os.path.exists(gitignore_path):
         with open(gitignore_path, "r") as f:
             content = f.read()
-            if ".env" not in content:
-                print("[SECURITY WARNING] .env is NOT listed in .gitignore.")
-            else:
-                print("[INFO] Git protection active (.env is hidden).")
-    else:
-        print("[WARNING] No .gitignore file found.")
-
-    # 3. Initialize Client
-    try:
-        client = genai.Client(api_key=api_key)
-    except Exception as e:
-        print(f"[ERROR] Client initialization failed: {e}")
-        return None
-
-    # Return immediately if testing is not required to conserve quota
-    if not test_connection:
-        return client
-
-    # 4. Connection Test with Exponential Backoff
-    print(f"[INFO] Testing connection to {CURRENT_MODEL}...")
-    
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            client.models.generate_content(
-                model=CURRENT_MODEL, 
-                contents='Ping'
-            )
-            print(f"[SUCCESS] Connected to {CURRENT_MODEL}")
-            return client
-
-        except Exception as e:
-            error_msg = str(e).lower()
+            missing = [item for item in sensitive_items if item not in content]
             
-            # Handle Rate Limit (429) errors
-            if "429" in error_msg:
-                wait_time = (attempt + 1) * 5
-                print(f"[WARNING] Rate limit hit (429). Waiting {wait_time}s before retry {attempt+1}...")
-                time.sleep(wait_time)
+            if missing:
+                print(f"[SECURITY WARNING] Missing from .gitignore: {', '.join(missing)}")
             else:
-                # Handle non-retriable errors
-                print(f"[ERROR] Connection failed: {e}")
-                return None
-    
-    print("[ERROR] Connection failed after maximum retries.")
-    return None
+                print("[INFO] Git protection active (Sensitive files hidden).")
+    else:
+        print("[WARNING] No .gitignore file found in the project root. Please create one.")
+
+# Execute checks automatically when config is imported
+run_startup_checks()

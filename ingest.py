@@ -1,88 +1,38 @@
 import os
-import sys
+import config
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import Chroma
-from config import setup_ai 
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
 
-# --- 1. SECURITY & SETUP ---
-# We call setup_ai to:
-#   a) Load .env variables
-#   b) Run the .gitignore security check
-#   c) Verify the API key exists
-# We set test_connection=False because we don't need the Chat Client here.
-_ = setup_ai(test_connection=False)
+def build_vector_database():
+    print(f"Scanning directory: {config.KNOWLEDGE_DIR}")
+    
+    loader = DirectoryLoader(config.KNOWLEDGE_DIR, glob="**/*.txt", loader_cls=TextLoader)
+    documents = loader.load()
 
-# Now we can safely get the key (setup_ai already verified it exists)
-api_key = os.getenv("GEMINI_API_KEY")
+    if not documents:
+        print("No source documents detected inside the knowledge directory.")
+        return
 
-if not api_key:
-    # Double check just in case
-    print("[CRITICAL] GEMINI_API_KEY missing. Exiting.")
-    sys.exit(1)
-
-# --- 2. DEFINE TOOLS ---
-# The Librarian: Turns text into math vectors
-# We use a SPECIFIC model for embeddings, distinct from the chat model in config.py
-embeddings = GoogleGenerativeAIEmbeddings(
-    model="models/text-embedding-004", 
-    google_api_key=api_key
-)
-
-# The Slicer: Breaks long notes into 500-character chunks
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50
-)
-
-# --- 3. THE ETL PIPELINE ---
-data_folder = "my_knowledge"
-all_documents = []
-
-print(f"\n[INFO] Starting ingestion from folder: '{data_folder}'...")
-
-if not os.path.exists(data_folder):
-    print(f"[ERROR] Folder '{data_folder}' not found. Please create it.")
-    sys.exit(1)
-
-# Step A: EXTRACT & TRANSFORM
-for filename in os.listdir(data_folder):
-    if filename.endswith(".txt") or filename.endswith(".md"):
-        full_path = os.path.join(data_folder, filename)
-        
-        try:
-            with open(full_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                
-                # Create labeled chunks
-                metadata = {"source": filename}
-                doc_chunks = text_splitter.create_documents(
-                    texts=[content], 
-                    metadatas=[metadata]
-                )
-                
-                all_documents.extend(doc_chunks)
-                print(f"Processed {filename}: {len(doc_chunks)} chunks created.")
-                
-        except Exception as e:
-            print(f"Error reading {filename}: {e}")
-
-# Step B: LOAD
-if not all_documents:
-    print("\n[WARNING] No documents found to ingest.")
-    sys.exit(0)
-
-print(f"\n[INFO] Loading {len(all_documents)} total chunks into ChromaDB...")
-
-try:
-    # This creates the database folder
-    vectorstore = Chroma.from_documents(
-        documents=all_documents,
-        embedding=embeddings,
-        persist_directory="./my_vectordb"
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=config.CHUNK_SIZE,
+        chunk_overlap=config.CHUNK_OVERLAP
     )
-    print("--- SUCCESS ---")
-    print("Database created and saved in './my_vectordb'")
+    chunks = text_splitter.split_documents(documents)
+    
+    print(f"Divided {len(documents)} documents into {len(chunks)} text chunks.")
+    print("Computing vector embeddings and updating ChromaDB store...")
 
-except Exception as e:
-    print(f"[ERROR] Failed to save database: {e}")
+    embeddings = HuggingFaceEmbeddings(model_name=config.EMBEDDING_MODEL)
+    
+    Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings,
+        persist_directory=config.DB_DIR
+    )
+    
+    print(f"Vector store generation completed successfully at: {config.DB_DIR}")
+
+if __name__ == "__main__":
+    build_vector_database()
