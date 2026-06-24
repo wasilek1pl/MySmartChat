@@ -23,11 +23,12 @@ The system follows a highly decoupled data engineering architecture:
 
 ## Installation and Setup
 
-1. **Environment Preparation**
-   Clone the repository and initialize a virtual environment:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
+1. **Environment Preparation:** Clone the repository and initialize a Python virtual environment by running `python -m venv .venv` followed by `source .venv/bin/activate`.
+2. **Dependency Installation:** Install the required Python packages into your isolated environment by executing `pip install -r requirements.txt`.
+3. **Local LLM Provisioning:** Ensure Ollama is installed on your macOS system, then pull the foundational inference model by running `ollama pull llama3`.
+4. **Security & Configuration Audit:** Run the configuration script via `python config.py` to initialize local storage directories and verify `.gitignore` protections.
+5. **Knowledge Base Ingestion:** Place your source `.txt` files into the `my_knowledge/` directory, then build the initial ChromaDB vector index by executing `python ingest.py`.
+6. **Application Launch:** Start the Streamlit frontend interface and relational database engine by running `streamlit run ui.py`.
 
 ## Backlog & To-Do List
 
