@@ -29,4 +29,10 @@ The system follows a highly decoupled data engineering architecture:
    python -m venv .venv
    source .venv/bin/activate
 
-## TODO
+## Backlog & To-Do List
+
+- **Research Mode Validation:** Conduct comprehensive testing of the RAG pipeline (`Research Mode`) against the ChromaDB vector store to verify accurate document retrieval and semantic matching.
+- **Multi-Format Document Ingestion:** Expand the `ingest.py` parsing logic to handle structured formats, specifically targeting `.csv` and `.pdf` files, and tokenize them for the vector database.
+- **Asynchronous Multithreading for UI:** Implement asynchronous UI streaming (e.g., `st.write_stream`) to render local LLM tokens to the Streamlit frontend in real-time, reducing perceived latency.
+- **Dynamic Context Window Management:** Implement programmatic token counting algorithms to safely truncate historical context before reaching the model's memory threshold during long sessions.
+- **DuckDB Analytics Dashboard:** Build a supplementary Streamlit dashboard designed to query the local `.duckdb` instance and display user metrics, frequently queried technical terms, and session length analytics.
