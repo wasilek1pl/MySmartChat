@@ -4,6 +4,7 @@ import re
 import uuid
 import duckdb
 from datetime import datetime
+import json
 import config
 
 from langchain_ollama import ChatOllama
@@ -16,69 +17,77 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 # --- 1. Database Initialization ---
 def init_database():
-    """Initializes DuckDB tables for tracking session data and message blocks."""
-    conn = duckdb.connect(config.DUCKDB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS chats (
-            chat_id VARCHAR PRIMARY KEY,
-            title VARCHAR,
-            created_at TIMESTAMP
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            message_id VARCHAR PRIMARY KEY,
-            chat_id VARCHAR,
-            role VARCHAR,
-            content VARCHAR,
-            timestamp TIMESTAMP
-        )
-    """)
-    conn.close()
+    """Initializes DuckDB tables with explicit cursors for state stability."""
+    with duckdb.connect(config.DUCKDB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chats (
+                chat_id VARCHAR PRIMARY KEY,
+                title VARCHAR,
+                created_at TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                message_id VARCHAR PRIMARY KEY,
+                chat_id VARCHAR,
+                role VARCHAR,
+                content VARCHAR,
+                timestamp TIMESTAMP
+            )
+        """)
+        conn.commit()
 
 init_database()
 
 # --- 2. Database Transaction Layer ---
 def save_message_to_db(chat_id, role, content):
-    """Logs individual message entries and creates parent session rows if missing."""
-    conn = duckdb.connect(config.DUCKDB_PATH)
-    chat_exists = conn.execute("SELECT 1 FROM chats WHERE chat_id = ?", [chat_id]).fetchone()
-    if not chat_exists:
-        conn.execute("INSERT INTO chats VALUES (?, ?, ?)", [chat_id, "General Discussion", datetime.now()])
-    
-    msg_id = str(uuid.uuid4())
-    conn.execute("INSERT INTO messages VALUES (?, ?, ?, ?, ?)", [msg_id, chat_id, role, content, datetime.now()])
-    conn.close()
+    """Logs individual message entries using isolated cursor memory locks."""
+    with duckdb.connect(config.DUCKDB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM chats WHERE chat_id = ?", [chat_id])
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO chats VALUES (?, ?, ?)", [chat_id, "General Discussion", datetime.now()])
+        
+        msg_id = str(uuid.uuid4())
+        cursor.execute("INSERT INTO messages VALUES (?, ?, ?, ?, ?)", [msg_id, chat_id, role, content, datetime.now()])
+        conn.commit()
 
 def load_messages_from_db(chat_id):
-    """Retrieves chronological array of messages matching a session token."""
-    conn = duckdb.connect(config.DUCKDB_PATH)
-    cursor = conn.execute("SELECT role, content FROM messages WHERE chat_id = ? ORDER BY timestamp ASC", [chat_id])
-    rows = cursor.fetchall()
-    conn.close()
-    return [{"role": row[0], "content": row[1]} for row in rows]
+    """Retrieves chronological array of message dictionaries matching a session token."""
+    with duckdb.connect(config.DUCKDB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT role, content FROM messages WHERE chat_id = ? ORDER BY timestamp ASC", [chat_id])
+        rows = cursor.fetchall()
+        return [{"role": row[0], "content": row[1]} for row in rows] if rows else []
 
 def update_chat_title(chat_id, new_title):
     """Commits title string updates to the target session row."""
-    conn = duckdb.connect(config.DUCKDB_PATH)
-    conn.execute("UPDATE chats SET title = ? WHERE chat_id = ?", [new_title, chat_id])
-    conn.close()
+    with duckdb.connect(config.DUCKDB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE chats SET title = ? WHERE chat_id = ?", [new_title, chat_id])
+        conn.commit()
 
 def get_chat_title(chat_id):
-    """Fetches descriptive title for active container presentation."""
+    """Fetches descriptive title for active container presentation safely."""
     if not chat_id:
         return "New Chat Session"
-    conn = duckdb.connect(config.DUCKDB_PATH)
-    row = conn.execute("SELECT title FROM chats WHERE chat_id = ?", [chat_id]).fetchone()
-    conn.close()
-    return row[0] if row else "General Discussion"
+    try:
+        with duckdb.connect(config.DUCKDB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT title FROM chats WHERE chat_id = ?", [chat_id])
+            row = cursor.fetchone()
+            return row[0] if row else "General Discussion"
+    except Exception:
+        return "General Discussion"
 
 def delete_chat_from_db(chat_id):
     """Purges historical dependencies and parent records from database files."""
-    conn = duckdb.connect(config.DUCKDB_PATH)
-    conn.execute("DELETE FROM messages WHERE chat_id = ?", [chat_id])
-    conn.execute("DELETE FROM chats WHERE chat_id = ?", [chat_id])
-    conn.close()
+    with duckdb.connect(config.DUCKDB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM messages WHERE chat_id = ?", [chat_id])
+        cursor.execute("DELETE FROM chats WHERE chat_id = ?", [chat_id])
+        conn.commit()
 
 # --- 3. Backend Model Engine ---
 class SmartChatEngine:
@@ -100,7 +109,7 @@ class SmartChatEngine:
         )
 
     def analyze_chat(self, chat_text):
-        """Generates clear theme splits using resilient text segmentation logic."""
+        """Generates thematic splits using resilient text segmentation logic."""
         prompt = f"""Read the following conversation log. Identify up to 3 distinct technical concepts or themes discussed.
         Write your answer in plain text. For each concept, use exactly this format on new lines:
         Topic: [Short Name]
@@ -127,11 +136,23 @@ class SmartChatEngine:
             
         return branches[:3]
 
+    def summarize_chat(self, chat_text):
+        """Generates a dense, comprehensive summary of an entire conversation log for map-reduce processing."""
+        prompt = f"""Review the following complete conversation history. Provide a dense, comprehensive technical summary that captures all key concepts, decisions, and data structures discussed throughout the entire log. Avoid generic filler or introductory text.
+        
+        Log:\n{chat_text}"""
+        return self.llm.invoke(prompt).content.strip()
+
+    def generate_short_preview(self, detailed_summary):
+        """Compresses a detailed technical summary into a single plain-text sentence for the UI."""
+        prompt = f"Summarize the following text into exactly one short, concise sentence. Do not include introductory filler. Output only the plain text sentence.\n\nText:\n{detailed_summary}"
+        return self.llm.invoke(prompt).content.strip()
+
 @st.cache_resource
-def get_engine(): 
+def get_engine(version="2.0"): 
     return SmartChatEngine()
 
-engine = get_engine()
+engine = get_engine(version="2.0")
 
 # --- 4. Streamlit UI and State Layout ---
 st.set_page_config(page_title="MySmartChat Pro", layout="wide")
@@ -149,11 +170,10 @@ with st.sidebar:
     st.markdown("### Operational Mode")
     chat_mode = st.radio("Route Execution Method:", ["Standard Chat", "Research Mode (RAG)"], index=0)
     
-    # --- Manual Rename Interface ---
+    # --- Session Management & Merging Interface ---
     if st.session_state.current_chat_id:
         st.markdown("### Session Management")
         with st.expander("Rename Chat Session", expanded=False):
-            # Tying the chat ID to the key forces Streamlit to refresh the pre-filled value
             custom_title = st.text_input(
                 "Edit title:", 
                 value=current_chat_name, 
@@ -164,6 +184,58 @@ with st.sidebar:
                     update_chat_title(st.session_state.current_chat_id, custom_title.strip())
                     st.rerun()
 
+    with st.expander("Merge Historical Chats", expanded=False):
+        with duckdb.connect(config.DUCKDB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT chat_id, title FROM chats ORDER BY created_at DESC")
+            all_chats_for_merge = cursor.fetchall() or []
+        
+        merge_options = {f"{title} ({c_id[-4:]})": c_id for c_id, title in all_chats_for_merge}
+        selected_chats = st.multiselect("Select chats to blend:", options=list(merge_options.keys()))
+        
+        if st.button("Merge Contexts", use_container_width=True):
+            if len(selected_chats) > 1:
+                new_id = "merged_" + datetime.now().strftime('%Y%m%d_%H%M%S')
+                
+                ui_parts = []
+                context_parts = []
+                
+                with st.spinner("Synthesizing full chat histories (processing two plain-text passes)..."):
+                    for chat_label in selected_chats:
+                        c_id = merge_options[chat_label]
+                        msgs = load_messages_from_db(c_id)
+                        
+                        full_chat_text = "\n".join([f"{m['role']}: {m['content']}" for m in msgs])
+                        
+                        detailed_summary = engine.summarize_chat(full_chat_text)
+                        short_summary = engine.generate_short_preview(detailed_summary)
+                        
+                        clean_title = chat_label.rsplit(' (', 1)[0].strip()
+                        
+                        ui_parts.append(f"- **{clean_title}**: {short_summary}")
+                        context_parts.append(f"--- Full Summary of [{clean_title}] ---\n{detailed_summary}")
+                
+                payload = {
+                    "purpose": "multi_context_merge",
+                    "ui_preview": "\n".join(ui_parts),
+                    "detailed_context": "System Context: You are resuming a newly synthesized session built by blending the full contexts of multiple previous conversations. Here are the comprehensive summaries:\n\n" + "\n\n".join(context_parts) + "\n\nPlease analyze how these distinct domains intersect, look for structural patterns, and ask me how we should begin integrating them."
+                }
+                blended_text = json.dumps(payload)
+                
+                save_message_to_db(new_id, "user", blended_text)
+                update_chat_title(new_id, "Synthesized Multi-Context")
+                
+                st.session_state.update({
+                    "current_chat_id": new_id, 
+                    "messages": [{"role": "user", "content": blended_text}], 
+                    "detected_branches": None, 
+                    "suggested_title": None
+                })
+                st.rerun()
+            else:
+                st.warning("Please select at least 2 sessions to merge.")
+
+    # --- Analytical Utilities ---
     st.markdown("### Analytical Utilities")
     if len(st.session_state.messages) > 1:
         if st.button("Extract Conversations", use_container_width=True):
@@ -174,19 +246,16 @@ with st.sidebar:
                 st.error("Analytical extraction halted.")
             st.rerun()
 
-    # --- Conversation Fork Processing ---
     if st.session_state.detected_branches:
         st.markdown("#### Isolate Thread Context:")
         for idx, b in enumerate(st.session_state.detected_branches):
             if st.button(f"Fork: {b['topic']}", key=f"fork_{idx}"):
                 new_id = "fork_" + datetime.now().strftime('%Y%m%d_%H%M%S')
                 
-                # Ensure the row is created in DB first before applying the custom title
                 pivot_msg = f"System Context from previous session regarding {b['topic']}: {b['summary']}\n\nLet's continue discussing this."
                 save_message_to_db(new_id, "user", pivot_msg)
                 
-                # Commit clean descriptive text string extracted by Python mapping logic
-                update_chat_title(new_id, b['topic']) # Removed the "Fork: " prefix
+                update_chat_title(new_id, b['topic'])
                 
                 st.session_state.update({
                     "current_chat_id": new_id, 
@@ -199,10 +268,8 @@ with st.sidebar:
     # --- Context-Aware Title Suggestion ---
     if st.session_state.current_chat_id and len(st.session_state.messages) > 0:
         if st.button("Generate Title Suggestion", use_container_width=True):
-            # Expand context to capture more of the shifting conversation
             title_context = " ".join([m['content'] for m in st.session_state.messages[:8]])
             
-            # Instruct the model specifically to combine disparate topics using categories
             title_prompt = (
                 f"Analyze this chat. Identify the main distinct topics discussed. "
                 f"Create a short title that captures them by combining their high-level categories "
@@ -217,10 +284,8 @@ with st.sidebar:
             else:
                 clean_name = raw_output.replace("*", "").replace('Title:', '').strip()
                 
-            # CRITICAL FIX: Allow commas, ampersands, and hyphens so combined titles format correctly
             clean_name = re.sub(r'[^a-zA-Z0-9 &,\-]', '', clean_name).strip()
             
-            # Allow up to 6 words to accommodate 'Word, Word & Word' structures
             st.session_state.suggested_title = " ".join(clean_name.split()[:6])
             st.rerun()
         
@@ -235,24 +300,20 @@ with st.sidebar:
                 st.session_state.suggested_title = None
                 st.rerun()
 
+    # --- Historical Sessions ---
     st.markdown("### Historical Sessions")
-    conn = duckdb.connect(config.DUCKDB_PATH)
-    saved_chats = conn.execute("SELECT chat_id, title FROM chats ORDER BY created_at DESC").fetchall()
-    conn.close()
+    with duckdb.connect(config.DUCKDB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT chat_id, title FROM chats ORDER BY created_at DESC")
+        saved_chats = cursor.fetchall() or []
     
     for c_id, title in saved_chats:
         col1, col2 = st.columns([4, 1])
         
-        # Determine if this is the active chat
         is_active = (c_id == st.session_state.current_chat_id)
-        
-        # Clean up legacy database entries that already have "Fork: " saved in them
         display_name = title.replace("Fork: ", "").strip()
-        
-        # Visually highlight the active chat using Streamlit's primary color instead of symbols
         btn_type = "primary" if is_active else "secondary"
         
-        # use_container_width=True allows the button to expand fully, removing the need for strict slicing
         if col1.button(display_name, key=f"load_{c_id}", help=display_name, use_container_width=True, type=btn_type):
             st.session_state.update({
                 "messages": load_messages_from_db(c_id), 
@@ -274,7 +335,14 @@ st.markdown("---")
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): 
-        st.markdown(msg["content"])
+        if msg["content"].startswith('{"purpose": "multi_context_merge"'):
+            try:
+                data = json.loads(msg["content"])
+                st.info(f"**Synthesized Multi-Context Session Active**\n\nThe following summary outlines the merged domains:\n\n{data['ui_preview']}")
+            except json.JSONDecodeError:
+                st.markdown(msg["content"])
+        else:
+            st.markdown(msg["content"])
 
 if prompt := st.chat_input("Enter text..."):
     if not st.session_state.current_chat_id:
@@ -287,21 +355,30 @@ if prompt := st.chat_input("Enter text..."):
     
     chat_history = []
     for m in st.session_state.messages[:-1]:
+        content_text = m["content"]
+        if content_text.startswith('{"purpose": "multi_context_merge"'):
+            try:
+                data = json.loads(content_text)
+                content_text = data["detailed_context"]
+            except json.JSONDecodeError:
+                pass
+        
         if m["role"] == "user":
-            chat_history.append(HumanMessage(content=m["content"]))
+            chat_history.append(HumanMessage(content=content_text))
         else:
-            chat_history.append(AIMessage(content=m["content"]))
+            chat_history.append(AIMessage(content=content_text))
     
     with st.chat_message("assistant"):
-        if chat_mode == "Research Mode (RAG)":
-            res = engine.rag_chain.invoke({
-                "input": prompt,
-                "chat_history": chat_history
-            })
-            ans = res.get("answer", str(res)) 
-        else:
-            full_history = chat_history + [HumanMessage(content=prompt)]
-            ans = engine.llm.invoke(full_history).content
+        with st.spinner("Analyzing context and generating response..."):
+            if chat_mode == "Research Mode (RAG)":
+                res = engine.rag_chain.invoke({
+                    "input": prompt,
+                    "chat_history": chat_history
+                })
+                ans = res.get("answer", str(res)) 
+            else:
+                full_history = chat_history + [HumanMessage(content=prompt)]
+                ans = engine.llm.invoke(full_history).content
             
         st.session_state.messages.append({"role": "assistant", "content": ans})
         save_message_to_db(st.session_state.current_chat_id, "assistant", ans)
