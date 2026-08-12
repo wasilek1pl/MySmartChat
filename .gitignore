@@ -1,34 +1,87 @@
-# 1. SECURITY (Never upload these!)
+# ==========================================
+# 1. SECURITY & SECRETS (Never upload these!)
+# ==========================================
 .env
 .env.local
+.env.*
 secrets.json
+*.pem
+*.key
+.streamlit/secrets.toml
 
+# ==========================================
 # 2. VIRTUAL ENVIRONMENT (Infrastructure)
+# ==========================================
 .venv/
 venv/
 env/
+ENV/
 
-# 3. PYTHON JUNK (Compiled files)
+# ==========================================
+# 3. PYTHON JUNK (Compiled files & cache)
+# ==========================================
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
+# ==========================================
 # 4. JUPYTER NOTEBOOKS (Temporary checkpoints)
+# ==========================================
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 
-# 5. MACOS SPECIFIC (The Mac "Ghost" files)
-.DS_Store
+# ==========================================
+# 5. IDEs & EDITORS
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# 6. DISTRIBUTION/BUILD
+# ==========================================
+# 6. MACOS & OS SPECIFIC (Ghost files)
+# ==========================================
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+
+# ==========================================
+# 7. DISTRIBUTION & BUILD
+# ==========================================
 dist/
 build/
 *.egg-info/
 
-# 7. VECTOR DATABASE (Local storage for ChromaDB)
-# We ignore this because it contains private indexed data.
+# ==========================================
+# 8. VECTOR DATABASE (ChromaDB)
+# ==========================================
 my_vectordb/
+chroma_db/
 .chroma/
+*.parquet
 
-# 8. RELATIONAL STATE DATABASE (DuckDB)
-chat_history.duckdb
+# ==========================================
+# 9. RELATIONAL STATE DATABASE (DuckDB)
+# ==========================================
+*.duckdb
+*.duckdb.wal
+*.duckdb.tmp
+
+# ==========================================
+# 10. LOGS & OBSERVABILITY
+# ==========================================
+*.log
+logs/
+app.log
+
+# ==========================================
+# 11. PERSONAL KNOWLEDGE DOCUMENTS
+# ==========================================
+# Ignores all personal documents in knowledge base,
+# but preserves the directory structure via .gitkeep
+my_knowledge/*
+!my_knowledge/.gitkeep

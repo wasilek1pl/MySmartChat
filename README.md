@@ -32,11 +32,14 @@ The system follows a highly decoupled data engineering architecture:
 
 ## Backlog & To-Do List
 
-## Backlog & To-Do List
+## Active Development
+- **Modular Architecture Refactoring:** Decoupling the monolithic Streamlit script into distinct system modules (`config.py`, `database.py`, `engine.py`, and `app.py`) for better separation of concerns.
+- **Targeted Topic Branching:** Implementing semantic LLM filtering to extract specific themes from massive conversation logs and fork them into clean, isolated chat sessions.
+- **Multi-Format Document Ingestion:** Expanding `ingest.py` to parse and tokenize structured formats (`.csv` and `.pdf`) into the ChromaDB vector database.
 
+## Future Backlog
 - **System Observability & Logging:** Implement Python's native `logging` module to track latency per inference, token counts per session, and gracefully capture JSON decoding exceptions into a local `app.log` file.
-- **LLM Evaluation Pipeline:** Build an evaluation protocol using the "RAG Triad" (Context Relevance, Groundedness, Answer Relevance) to programmatically measure the accuracy of local model outputs.
-- **Research Mode Validation:** Conduct comprehensive testing of the RAG pipeline (`Research Mode`) against the ChromaDB vector store to verify accurate document retrieval.
-- **Multi-Format Document Ingestion:** Expand `ingest.py` to parse and tokenize structured formats, specifically targeting `.csv` and `.pdf` files, into the vector database.
 - **Asynchronous Multithreading:** Implement UI streaming using asynchronous generators to stream local LLM tokens to the Streamlit frontend, reducing perceived latency.
 - **Dynamic Context Window Management:** Implement programmatic token counting algorithms to safely truncate historical context before reaching the model's memory threshold.
+- **LLM Evaluation Pipeline:** Build an evaluation protocol using the "RAG Triad" (Context Relevance, Groundedness, Answer Relevance) to programmatically measure the accuracy of local model outputs.
+- **Research Mode Validation:** Conduct comprehensive testing of the RAG pipeline (`Research Mode`) against the ChromaDB vector store to verify accurate document retrieval.
