@@ -1,15 +1,24 @@
-# MySmartChat Pro: Local RAG Assistant
+# MySmartChat Pro: Local AI & Data Assistant
 
 ## Project Overview
-This project implements a fully localized Retrieval-Augmented Generation (RAG) system optimized for macOS Apple Silicon. It is designed for complete data privacy, operating entirely offline without external API dependencies. The system leverages Ollama (Llama 3) for inference, ChromaDB for vector storage, and DuckDB for relational conversation state management. It features persistent memory, automatic semantic topic extraction, and dynamic conversation branching.
+This project is a fully local AI chat assistant built as a hands-on data engineering project. It is optimized for macOS Apple Silicon and designed for complete data privacy—everything runs offline on your machine with no external APIs. 
 
-## Technical Architecture
-The system follows a highly decoupled data engineering architecture:
-1. **Data Ingestion:** A document crawler (`ingest.py`) processes local text files, chunks them, and stores vector embeddings (via HuggingFace) in a local ChromaDB instance.
-2. **Retrieval Pipeline:** User queries route through a LangChain retrieval chain, pulling top-k relevant contexts using semantic similarity.
-3. **Relational State Management:** Conversation history is strictly managed using a local DuckDB analytical database, eliminating file-system traversal risks and allowing for robust SQL querying of historical data.
-4. **Offline Inference:** Language generation is handled locally via Ollama, ensuring zero data egress.
-5. **Topic Extraction & Branching:** An analytical extraction protocol uses strict Regex multi-line parsing to identify topic shifts within the conversation log, allowing users to fork contexts into new, isolated threads.
+Instead of just a simple script, this is built with a decoupled data architecture. It uses **Ollama (Llama 3)** to generate text, **ChromaDB** to search through local documents, and **DuckDB** to safely save your chat history. 
+
+## How It Works (System Architecture)
+The code is broken down into separate, modular files so the frontend, backend, and databases don't get tangled up:
+1. **Frontend (`app.py`):** The Streamlit user interface. It only handles what the user sees and clicks.
+2. **The Brain (`engine.py`):** Uses LangChain to connect to the local Llama 3 model. It handles the logic for chatting, summarizing, and searching.
+3. **Relational Database (`database.py`):** Saves all chat history locally using DuckDB. It uses explicit SQL "cursors" to safely write data without locking up or crashing the system.
+4. **Data Ingestion (`ingest.py`):** A background script that reads local text files, chops them up, and saves them into ChromaDB so the AI can search through them later.
+5. **System Safety (`config.py` & `error_handler.py`):** Centralized settings and a custom error catcher. If a database fails or Ollama is turned off, the app logs the error to a hidden `app.log` file instead of crashing the screen.
+
+## Key Features
+* **Standard Chat & Research Mode:** Chat normally, or ask the AI to search your local documents for answers (RAG).
+* **Topic Extraction & Branching:** The AI can read a long chat, find specific topics, and "fork" them into a brand new, focused chat session.
+* **Context Merging:** Select multiple historical chats and merge them together. The system creates a summarized "master context" so you can talk about all of them at once.
+* **Auto-Renaming:** The system automatically generates short, clean titles for your chats based on the conversation context.
+* **Crash Protection:** Background logging and error handlers keep the application stable.
 
 ## Technical Stack
 - **Language:** Python 3.10+
@@ -19,7 +28,6 @@ The system follows a highly decoupled data engineering architecture:
 - **Vector Database:** ChromaDB
 - **Embedding Model:** HuggingFace (`all-MiniLM-L6-v2`)
 - **Relational Database:** DuckDB
-- **OS:** macOS (Optimized for Apple Silicon M-series)
 
 ## Installation and Setup
 
@@ -30,16 +38,10 @@ The system follows a highly decoupled data engineering architecture:
 5. **Knowledge Base Ingestion:** Place your source `.txt` files into the `my_knowledge/` directory, then build the initial ChromaDB vector index by executing `python ingest.py`.
 6. **Application Launch:** Start the Streamlit frontend interface and relational database engine by running `streamlit run ui.py`.
 
-## Backlog & To-Do List
+## Next on the Roadmap (Future Backlog)
 
-## Active Development
-- **Modular Architecture Refactoring:** Decoupling the monolithic Streamlit script into distinct system modules (`config.py`, `database.py`, `engine.py`, and `app.py`) for better separation of concerns.
-- **Targeted Topic Branching:** Implementing semantic LLM filtering to extract specific themes from massive conversation logs and fork them into clean, isolated chat sessions.
-- **Multi-Format Document Ingestion:** Expanding `ingest.py` to parse and tokenize structured formats (`.csv` and `.pdf`) into the ChromaDB vector database.
-
-## Future Backlog
-- **System Observability & Logging:** Implement Python's native `logging` module to track latency per inference, token counts per session, and gracefully capture JSON decoding exceptions into a local `app.log` file.
-- **Asynchronous Multithreading:** Implement UI streaming using asynchronous generators to stream local LLM tokens to the Streamlit frontend, reducing perceived latency.
-- **Dynamic Context Window Management:** Implement programmatic token counting algorithms to safely truncate historical context before reaching the model's memory threshold.
-- **LLM Evaluation Pipeline:** Build an evaluation protocol using the "RAG Triad" (Context Relevance, Groundedness, Answer Relevance) to programmatically measure the accuracy of local model outputs.
-- **Research Mode Validation:** Conduct comprehensive testing of the RAG pipeline (`Research Mode`) against the ChromaDB vector store to verify accurate document retrieval.
+* **Multi-Format Documents:** Update `ingest.py` so it can read PDFs and CSV files, not just text files.
+* **Asynchronous Multithreading:** Stream the AI's text to the screen word-by-word so it feels faster.
+* **Dynamic Context Limits:** Add a system to count words/tokens so the AI doesn't get overwhelmed and crash if a chat gets too long.
+* **LLM Evaluation Pipeline:** Build a testing system to automatically score how accurate the AI's answers are.
+* **Research Mode Validation:** Run detailed tests on the ChromaDB search to make sure it pulls the correct document paragraphs.
