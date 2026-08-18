@@ -81,7 +81,5 @@ app.log
 # ==========================================
 # 11. PERSONAL KNOWLEDGE DOCUMENTS
 # ==========================================
-# Ignores all personal documents in knowledge base,
-# but preserves the directory structure via .gitkeep
 my_knowledge/*
 !my_knowledge/.gitkeep
